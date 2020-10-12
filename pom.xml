@@ -20,9 +20,13 @@
 
   <distributionManagement>
     <repository>
+      <id>maven-releases</id>
+      <url>http://localhost:8081/repository/maven-releases/</url>
+    </repository>
+    <snapshotRepository>
       <id>maven-snapshots</id>
       <url>http://localhost:8081/repository/maven-snapshots/</url>
-    </repository>
+    </snapshotRepository>
   </distributionManagement>
 
   <dependencies>
@@ -39,47 +43,89 @@
       <plugins>
         <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-clean-plugin</artifactId>
           <version>3.1.0</version>
         </plugin>
         <!-- default lifecycle, jar packaging: see https://maven.apache.org/ref/current/maven-core/default-bindings.html#Plugin_bindings_for_jar_packaging -->
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
           <version>3.0.2</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.8.0</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>2.22.1</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
           <version>3.0.2</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
           <version>2.5.2</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
           <version>2.8.2</version>
         </plugin>
         <!-- site lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#site_Lifecycle -->
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
           <version>3.7.1</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-project-info-reports-plugin</artifactId>
           <version>3.0.0</version>
         </plugin>
       </plugins>
     </pluginManagement>
 
+    <finalName>${project.artifactId}-${project.artifact.version}</finalName>
+
     <plugins>
+      <plugin>
+        <!-- retrieve the current commit hash, for versioning the poms and artifacts -->
+        <groupId>pl.project13.maven</groupId>
+        <artifactId>git-commit-id-plugin</artifactId>
+        <version>2.2.4</version>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>revision</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <dateFormat>yyyyMMdd.HHmmss</dateFormat><!--  human-readable part of the version id -->
+          <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
+          <generateGitPropertiesFile>false</generateGitPropertiesFile><!-- somehow necessary. otherwise the variables are not available in the pom -->
+          <injectAllReactorProjects>true</injectAllReactorProjects>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+      </plugin>
+
       <plugin>
         <!-- this will change the version for the current build, so the artifacts will be installed and deployed with the corret version -->
         <groupId>org.codehaus.gmaven</groupId>
@@ -87,7 +133,28 @@
         <version>2.0</version>
         <executions>
           <execution>
+            <id>set-version</id>
             <phase>validate</phase>
+            <goals>
+              <goal>execute</goal>
+            </goals>
+            <configuration>
+              <source>
+                println 'Branch=${git.branch}, Git Commit Time=${git.commit.time}, Git Commit Id Abrrev:${git.commit.id.abbrev}'
+                def newVersion;
+                if ( "master|main".indexOf('${git.branch}') != -1 || '${git.branch}'.startsWith("hotfix")) { // hotfix/jan
+                  newVersion = '${git.commit.time}.${git.commit.id.abbrev}';
+                } else {
+                  newVersion = '${git.branch}-SNAPSHOT';
+                }
+                project.artifact.version = newVersion;
+                println "New Version: ${newVersion}"
+              </source>
+            </configuration>
+          </execution>
+          <execution>
+            <id>get-download-url</id>
+            <phase>deploy</phase>
             <goals>
               <goal>execute</goal>
             </goals>
@@ -97,16 +164,28 @@
                 import static groovyx.net.http.Method.GET
                 import static groovyx.net.http.ContentType.JSON
 
-                project.artifact.version = '20201007-120033.12604f6'
+                println 'version ${project.artifact.version}'
+//                project.artifact.version = '20201007-120033.12604f6'
+//                project.artifact.version = 'main-SNAPSHOT'
 
                 def http = new HTTPBuilder( 'http://localhost:8081/service/rest/v1/search/assets' )
 
                 http.request(GET, JSON) { req ->
-                  uri.query = [ 'maven.groupId':project.groupId,
-                                'maven.artifactId': project.artifactId,
-                                'version':project.artifact.version,
-                                'maven.extension':project.packaging ]
+                  if (project.artifact.version.endsWith("SNAPSHOT")) {
+                    uri.query = [ 'maven.groupId':project.groupId,
+                                  'maven.artifactId': project.artifactId,
+                                  'maven.baseVersion':project.artifact.version,
+                                  'maven.extension':project.packaging,
+                                  'sort':'version']
+                  } else {
+                    uri.query = [ 'maven.groupId':project.groupId,
+                                  'maven.artifactId': project.artifactId,
+                                  'version':project.artifact.version,
+                                  'maven.extension':project.packaging ]
+                  }
                   // headers.'User-Agent' = 'Mozilla/5.0'
+                  println req
+                  println req.uri
 
                   response.success = { resp, json ->
                     assert resp.status == 200
