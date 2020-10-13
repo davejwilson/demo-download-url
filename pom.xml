@@ -179,32 +179,27 @@
                   import static groovyx.net.http.Method.POST
                   import static groovyx.net.http.ContentType.JSON
 
-                  def http = new HTTPBuilder( '${build.resource.url}' )
-                  http.request(POST, JSON) { req ->
-                    def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
-                    uri.query = [ 'groupId':project.groupId,
-                                  'artifactId': project.artifactId,
-                                  'version':version,
-                                  'maven.extension':project.packaging ]
-                    def downloadUrl = session.userProperties['download.url']
-                    if ( downloadUrl != null ) {
-                      uri.query.put 'downloadUrl', downloadUrl
-                    }
-                    uri.query.put 'validate', 'true'
-                    def file = new File('./bindings.json')
-                    if ( file.exists() && file.length() > 0 ) {
+                  def file = new File('./bindings.json')
+                  if ( file.exists() && file.length() > 0 ) {
+                    def http = new HTTPBuilder( '${build.resource.url}' )
+                    http.request(POST, JSON) { req ->
+                      def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
+                      uri.query = [ 'groupId':project.groupId,
+                                    'artifactId': project.artifactId,
+                                    'version':version,
+                                    'maven.extension':project.packaging ]
+                      def downloadUrl = session.userProperties['download.url']
+                      if ( downloadUrl != null ) {
+                        uri.query.put 'downloadUrl', downloadUrl
+                      }
+                      uri.query.put 'validate', 'true'
                       body = file.text
-                    }
-                    // headers.'User-Agent' = 'Mozilla/5.0'
+                      // headers.'Authorization' = 'Basic YWRtaW46YWRtaW4=' // example of adding auth
 
-                    response.success = { resp, json ->
-                      assert resp.status == 200
-                      println json
-                    }
-
-                    // called only for a 404 (not found) status code:
-                    response.'404' = { resp ->
-                      println 'Not found'
+                      response.success = { resp, json ->
+                        assert resp.status == 200
+                        println json
+                      }
                     }
                   }
                   ]]></source>
@@ -222,31 +217,26 @@
                     import static groovyx.net.http.Method.POST
                     import static groovyx.net.http.ContentType.JSON
 
-                    def http = new HTTPBuilder( '${build.resource.url}' )
-                    http.request(POST, JSON) { req ->
-                      def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
-                      uri.query = [ 'groupId':project.groupId,
-                                    'artifactId': project.artifactId,
-                                    'version':version,
-                                    'maven.extension':project.packaging ]
-                      def downloadUrl = session.userProperties['download.url']
-                      if ( downloadUrl != null ) {
-                        uri.query.put 'downloadUrl', downloadUrl
-                      }
-                      def file = new File('./bindings.json')
-                      if ( file.exists() && file.length() > 0 ) {
+                    def file = new File('./bindings.json')
+                    if (file.exists() && file.length() > 0) {
+                      def http = new HTTPBuilder('${build.resource.url}')
+                      http.request(POST, JSON) { req ->
+                        def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
+                        uri.query = ['groupId'        : project.groupId,
+                                     'artifactId'     : project.artifactId,
+                                     'version'        : version,
+                                     'maven.extension': project.packaging]
+                        def downloadUrl = session.userProperties['download.url']
+                        if (downloadUrl != null) {
+                          uri.query.put 'downloadUrl', downloadUrl
+                        }
                         body = file.text
-                      }
-                      // headers.'User-Agent' = 'Mozilla/5.0'
+                        // headers.'Authorization' = 'Basic YWRtaW46YWRtaW4=' // example of adding auth
 
-                      response.success = { resp, json ->
-                        assert resp.status == 200
-                        println json
-                      }
-
-                      // called only for a 404 (not found) status code:
-                      response.'404' = { resp ->
-                        println 'Not found'
+                        response.success = { resp, json ->
+                          assert resp.status == 200
+                          println json
+                        }
                       }
                     }
                     ]]></source>
