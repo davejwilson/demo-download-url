@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>demo-download-url</artifactId>
+        <groupId>org.example</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>demo-module</artifactId>
+
+    <name>demo-module</name>
+    <!-- FIXME change it to the project's website -->
+    <url>http://www.example.com</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.7</maven.compiler.source>
+        <maven.compiler.target>1.7</maven.compiler.target>
+        <nexus.url>http://localhost:8081</nexus.url>
+        <build.resource.url>http://localhost:8080/build</build.resource.url>
+    </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>maven-releases</id>
+            <url>http://localhost:8081/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>maven-snapshots</id>
+            <url>http://localhost:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <dependencies>
+        <!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.8.0</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.11.1</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.14</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>git-versioning</id>
+            <build>
+                <finalName>${project.artifactId}-${project.artifact.version}</finalName>
+
+                <plugins>
+                    <plugin>
+                        <!-- retrieve the current commit hash, for versioning the poms and artifacts -->
+                        <groupId>pl.project13.maven</groupId>
+                        <artifactId>git-commit-id-plugin</artifactId>
+                        <version>2.2.4</version>
+                        <executions>
+                            <execution>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>revision</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <dateFormat>yyyyMMdd-HHmmss</dateFormat><!--  human-readable part of the version id -->
+                            <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
+                            <generateGitPropertiesFile>false</generateGitPropertiesFile><!-- somehow necessary. otherwise the variables are not available in the pom -->
+                            <injectAllReactorProjects>true</injectAllReactorProjects>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <!-- this will change the version for the current build, so the artifacts will be installed and deployed with the corret version -->
+                        <groupId>org.codehaus.gmaven</groupId>
+                        <artifactId>groovy-maven-plugin</artifactId>
+                        <version>2.0</version>
+                        <executions>
+                            <execution>
+                                <id>set-git-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <configuration>
+                                    <source>
+                                        println 'Branch=${git.branch}, Git Commit Time=${git.commit.time}, Git Commit Id Abrrev:${git.commit.id.abbrev}'
+                                        def isReleaseBranch = ( 'master|main'.indexOf('${git.branch}') != -1 || '${git.branch}'.startsWith('hotfix') )
+                                        println 'isReleaseBranch=' + isReleaseBranch
+                                        def gitVersion = isReleaseBranch ? '${git.commit.time}.${git.commit.id.abbrev}' : '${git.branch}-SNAPSHOT'
+                                        println 'gitVersion=' + gitVersion
+                                        project.artifact.version = gitVersion
+                                        session.userProperties.put 'git.version', gitVersion
+                                        println session.userProperties
+                                    </source>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>nexus-download-url</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!-- this will change the version for the current build, so the artifacts will be installed and deployed with the corret version -->
+                        <groupId>org.codehaus.gmaven</groupId>
+                        <artifactId>groovy-maven-plugin</artifactId>
+                        <version>2.0</version>
+                        <executions>
+                            <execution>
+                                <id>get-download-url</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <configuration>
+                                    <source>
+                                        def gitVersion = session.userProperties['git.version']
+                                        println 'gitVersion=' + gitVersion
+                                        def downloadUrl
+                                        if ( gitVersion != null ) {
+                                            downloadUrl = '${nexus.url}/service/rest/v1/search/assets/download?maven.groupId=${project.groupId}&amp;maven.artifactId=${project.artifactId}&amp;version=${git.version}&amp;maven.extension=${project.packaging}&amp;sort=version'
+                                        } else {
+                                            downloadUrl = '${nexus.url}/service/rest/v1/search/assets/download?maven.groupId=${project.groupId}&amp;maven.artifactId=${project.artifactId}&amp;maven.baseVersion=${project.version}&amp;maven.extension=${project.packaging}&amp;sort=version'
+                                        }
+                                        println 'downloadUrl=' + downloadUrl
+                                        session.userProperties.put 'download.url', downloadUrl
+                                    </source>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>build-registration</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!-- this will change the version for the current build, so the artifacts will be installed and deployed with the corret version -->
+                        <groupId>org.codehaus.gmaven</groupId>
+                        <artifactId>groovy-maven-plugin</artifactId>
+                        <version>2.0</version>
+                        <executions>
+                            <execution>
+                                <id>validate-build</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <configuration>
+                                    <source><![CDATA[
+                                        import groovyx.net.http.HTTPBuilder
+                                        import static groovyx.net.http.Method.POST
+                                        import static groovyx.net.http.ContentType.JSON
+
+                                        def file = new File('./bindings.json')
+                                        if ( file.exists() && file.length() > 0 ) {
+                                            def http = new HTTPBuilder( '${build.resource.url}' )
+                                            http.request(POST, JSON) { req ->
+                                                def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
+                                                uri.query = [ 'groupId':project.groupId,
+                                                              'artifactId': project.artifactId,
+                                                              'version':version,
+                                                              'maven.extension':project.packaging ]
+                                                def downloadUrl = session.userProperties['download.url']
+                                                if ( downloadUrl != null ) {
+                                                    uri.query.put 'downloadUrl', downloadUrl
+                                                }
+                                                uri.query.put 'validate', 'true'
+                                                body = file.text
+                                                // headers.'Authorization' = 'Basic YWRtaW46YWRtaW4=' // example of adding auth
+
+                                                response.success = { resp, json ->
+                                                    assert resp.status == 200
+                                                    println json
+                                                }
+                                            }
+                                        }
+                                        ]]></source>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>register-build</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <configuration>
+                                    <source><![CDATA[
+                                        import groovyx.net.http.HTTPBuilder
+                                        import static groovyx.net.http.Method.POST
+                                        import static groovyx.net.http.ContentType.JSON
+
+                                        def file = new File('./bindings.json')
+                                        if (file.exists() && file.length() > 0) {
+                                            def http = new HTTPBuilder('${build.resource.url}')
+                                            http.request(POST, JSON) { req ->
+                                                def version = session.userProperties['git.version'] != null ? '${git.version}' : '${project.version}'
+                                                uri.query = ['groupId'        : project.groupId,
+                                                             'artifactId'     : project.artifactId,
+                                                             'version'        : version,
+                                                             'maven.extension': project.packaging]
+                                                def downloadUrl = session.userProperties['download.url']
+                                                if (downloadUrl != null) {
+                                                    uri.query.put 'downloadUrl', downloadUrl
+                                                }
+                                                body = file.text
+                                                // headers.'Authorization' = 'Basic YWRtaW46YWRtaW4=' // example of adding auth
+
+                                                response.success = { resp, json ->
+                                                    assert resp.status == 200
+                                                    println json
+                                                }
+                                            }
+                                        }
+                                        ]]></source>
+                                </configuration>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.codehaus.groovy</groupId>
+                                <artifactId>groovy-all</artifactId>
+                                <version>2.4.6</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.codehaus.groovy.modules.http-builder</groupId>
+                                <artifactId>http-builder</artifactId>
+                                <version>0.7.1</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+</project>

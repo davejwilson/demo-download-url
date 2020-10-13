@@ -7,10 +7,12 @@
   <groupId>org.example</groupId>
   <artifactId>demo-download-url</artifactId>
   <version>1.0-SNAPSHOT</version>
-  <packaging>jar</packaging>
+  <modules>
+    <module>demo-module</module>
+  </modules>
+  <packaging>pom</packaging>
 
   <name>demo-download-url</name>
-  <url>NO_ARTIFACT</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -179,7 +181,9 @@
                   import static groovyx.net.http.Method.POST
                   import static groovyx.net.http.ContentType.JSON
 
-                  def file = new File('./bindings.json')
+                  def path = '${maven.multiModuleProjectDirectory}/bindings.json'
+                  println 'path=' + path
+                  def file = new File(path)
                   if ( file.exists() && file.length() > 0 ) {
                     def http = new HTTPBuilder( '${build.resource.url}' )
                     http.request(POST, JSON) { req ->
@@ -217,7 +221,9 @@
                     import static groovyx.net.http.Method.POST
                     import static groovyx.net.http.ContentType.JSON
 
-                    def file = new File('./bindings.json')
+                    def path = '${maven.multiModuleProjectDirectory}/bindings.json'
+                    println 'path=' + path
+                    def file = new File(path)
                     if (file.exists() && file.length() > 0) {
                       def http = new HTTPBuilder('${build.resource.url}')
                       http.request(POST, JSON) { req ->
