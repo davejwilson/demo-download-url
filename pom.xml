@@ -64,7 +64,7 @@
 
   <profiles>
     <profile>
-      <id>git-version</id>
+      <id>git-versioning</id>
       <build>
         <finalName>${project.artifactId}-${project.artifact.version}</finalName>
 
